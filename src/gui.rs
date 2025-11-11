@@ -106,7 +106,7 @@ impl HyprDock {
                 app4.quit();
             });
             export.connect_clicked(move |_mirror| {
-                save_hypr_monitor_data(config_ref5.monitor_config_path.clone(), None, None);
+                save_hypr_monitor_data(config_ref5.monitor_config_path.clone());
                 app5.quit();
             });
 
@@ -155,7 +155,7 @@ impl HyprDock {
                     Propagation::Stop
                 }
                 gtk::gdk::keys::constants::_5 => {
-                    save_hypr_monitor_data(config_ref6.monitor_config_path.clone(), None, None);
+                    save_hypr_monitor_data(config_ref6.monitor_config_path.clone());
                     app6.quit();
                     Propagation::Stop
                 }
@@ -168,10 +168,8 @@ impl HyprDock {
     }
     fn load_css(&self) {
         let context_provider = gtk::CssProvider::new();
-        if self.css_string != "" {
-            context_provider
-                .load_from_path(&self.css_string)
-                .unwrap_or_else(|_| {});
+        if !self.css_string.is_empty() {
+            let _ = context_provider.load_from_path(&self.css_string);
         }
 
         StyleContext::add_provider_for_screen(

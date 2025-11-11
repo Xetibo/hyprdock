@@ -3,13 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    crane.url = "github:ipetkov/crane";
     flake-parts = {
       url = "github:hercules-ci/flake-parts";
       inputs.nixpkgs-lib.follows = "nixpkgs";
     };
   };
 
-  outputs = inputs @ {flake-parts, ...}:
+  outputs = inputs @ {
+    flake-parts,
+    crane,
+    ...
+  }:
     flake-parts.lib.mkFlake {inherit inputs;} {
       systems = ["x86_64-linux" "aarch64-linux"];
 
@@ -17,7 +22,9 @@
         self',
         pkgs,
         ...
-      }: {
+      }: let
+        craneLib = crane.mkLib pkgs;
+      in {
         devShells.default = pkgs.mkShell {
           inputsFrom = builtins.attrValues self'.packages;
           packages = with pkgs; [
@@ -28,10 +35,8 @@
             rustfmt
           ];
         };
-        packages = let
-          lockFile = ./Cargo.lock;
-        in rec {
-          hyprdock = pkgs.callPackage ./nix/default.nix {inherit inputs lockFile;};
+        packages = rec {
+          hyprdock = pkgs.callPackage ./nix/default.nix {inherit inputs craneLib;};
           default = hyprdock;
         };
       };

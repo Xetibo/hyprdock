@@ -26,6 +26,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use crate::LOG;
+
 use super::Monitor;
 
 #[allow(non_snake_case)]
@@ -102,7 +104,11 @@ pub fn get_hypr_monitor_info() -> Vec<u8> {
         .stdout
 }
 
-pub fn get_current_monitor_hash(name: Option<&String>) -> String {
+pub fn get_current_monitor_hash() -> String {
+    get_current_monitor_hash_and_name(None)
+}
+
+pub fn get_current_monitor_hash_and_name(name: Option<&String>) -> String {
     let monitors: Vec<HyprMonitor> = serde_json::from_str(
         &String::from_utf8(get_hypr_monitor_info()).expect("Could not parse json"),
     )
@@ -115,17 +121,21 @@ pub fn get_current_monitor_hash(name: Option<&String>) -> String {
     s.finish().to_string()
 }
 
-pub fn save_hypr_monitor_data(path: String, name: Option<&String>, hash: Option<&String>) {
-    let monitor_name = get_current_monitor_hash(name);
-    let monitor_hash = hash.unwrap_or(&monitor_name);
-    let mut file = File::create(path + "monitor_configs/" + &monitor_hash + ".json")
+pub fn save_hypr_monitor_data(path: String) {
+    save_hypr_monitor_data_with_name(path, None)
+}
+
+pub fn save_hypr_monitor_data_with_name(path: String, name: Option<&String>) {
+    LOG!("Saving monitor config");
+    let monitor_hash = &get_current_monitor_hash_and_name(name);
+    let mut file = File::create(path + "monitor_configs/" + monitor_hash + ".json")
         .expect("Could not open json file");
     file.write_all(&get_hypr_monitor_info())
         .expect("Could not write to file");
 }
 
-pub fn try_get_monitor_hash_path(base_path: String, hash: &String) -> Option<PathBuf> {
-    let path = PathBuf::from(base_path + "/monitor_configs" + &hash + ".json");
+pub fn try_get_monitor_hash_path(base_path: String, hash: &str) -> Option<PathBuf> {
+    let path = PathBuf::from(base_path + "/monitor_configs" + hash + ".json");
     if path.is_file() { Some(path) } else { None }
 }
 
@@ -135,7 +145,7 @@ pub fn import_hypr_data(
     hash: Option<&String>,
 ) -> Option<Vec<Monitor>> {
     use std::io::prelude::*;
-    let monitor_name = &get_current_monitor_hash(name);
+    let monitor_name = &get_current_monitor_hash_and_name(name);
     let monitor_hash = hash.unwrap_or(monitor_name);
     let path = try_get_monitor_hash_path(base_path, monitor_hash)?;
     let mut file = File::open(path).ok()?;
@@ -157,6 +167,7 @@ pub fn set_hypr_monitors_from_hyprvec(monitors: Vec<HyprMonitor>) {
 }
 
 pub fn set_hypr_monitors_from_file(path: String, name: Option<&String>, hash: Option<&String>) {
+    LOG!("Importing monitor config");
     let monitors_opt = import_hypr_data(path, name, hash);
     if let Some(monitors) = monitors_opt {
         for monitor in monitors {

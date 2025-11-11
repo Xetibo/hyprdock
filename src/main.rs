@@ -31,9 +31,30 @@ use std::{
     process::{Command, ExitCode},
     thread,
 };
-use toml;
+
+use crate::monitors::hypr_monitors::save_hypr_monitor_data_with_name;
+
+enum HyprDockEvent {
+    VideoPlugIn,
+    VideoPlugOut,
+    LidOpen,
+    LidClose,
+}
+
+impl HyprDockEvent {
+    pub fn from_str(event: &str) -> Option<HyprDockEvent> {
+        match event {
+            _ if event.contains("LID close") => Some(HyprDockEvent::LidClose),
+            _ if event.contains("LID open") => Some(HyprDockEvent::LidOpen),
+            _ if event.contains("VIDEOOUT plug") => Some(HyprDockEvent::VideoPlugIn),
+            _ if event.contains("VIDEOOUT unplug") => Some(HyprDockEvent::VideoPlugOut),
+            _ => None,
+        }
+    }
+}
 
 pub mod gui;
+pub mod macros;
 pub mod monitors;
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
@@ -53,7 +74,7 @@ impl HyprdockCommand {
         Self {
             base: base.trim().into(),
             args: args
-                .into_iter()
+                .iter()
                 .map(|val| String::from(*val))
                 .collect::<Vec<String>>(),
         }
@@ -65,10 +86,10 @@ impl HyprdockCommand {
         }
     }
 
-    pub fn format(&self, monitor: &String) -> Self {
+    pub fn format(&self, monitor: &str) -> Self {
         let mut new_args = Vec::new();
         for arg in self.args.iter() {
-            let processed_arg = arg.replace("{}", &monitor);
+            let processed_arg = arg.replace("{}", monitor);
             new_args.push(processed_arg);
         }
         Self {
@@ -78,7 +99,7 @@ impl HyprdockCommand {
     }
 }
 
-const DEFAULT_CONFIG: Lazy<OptionalHyprDock> = Lazy::new(|| {
+static DEFAULT_CONFIG: Lazy<OptionalHyprDock> = Lazy::new(|| {
     let fetcher = "hyprctl";
     OptionalHyprDock {
         monitor_name: Some("eDP-1".into()),
@@ -127,6 +148,7 @@ const DEFAULT_CONFIG: Lazy<OptionalHyprDock> = Lazy::new(|| {
     }
 });
 
+#[allow(clippy::unnecessary_to_owned)]
 fn default_config_string() -> String {
     toml::to_string(&DEFAULT_CONFIG.to_owned()).unwrap()
 }
@@ -189,14 +211,14 @@ fn main() -> ExitCode {
             "--export" | "-ex" => {
                 let next_token = iter.next();
                 if next_token.is_none() {
-                    save_hypr_monitor_data(dock.monitor_config_path.clone(), None, None);
+                    save_hypr_monitor_data(dock.monitor_config_path.clone());
                     return ExitCode::SUCCESS;
                 }
-                if next_token.unwrap().chars().next().unwrap() == '-' {
+                if next_token.unwrap().starts_with('-') {
                     print_help();
                     return ExitCode::FAILURE;
                 }
-                save_hypr_monitor_data(dock.monitor_config_path.clone(), next_token, None);
+                save_hypr_monitor_data_with_name(dock.monitor_config_path.clone(), next_token);
                 iteration += 1;
             }
             "--import" | "-in" => {
@@ -205,7 +227,7 @@ fn main() -> ExitCode {
                     set_hypr_monitors_from_file(dock.monitor_config_path.clone(), None, None);
                     return ExitCode::SUCCESS;
                 }
-                if next_token.unwrap().chars().next().unwrap() == '-' {
+                if next_token.unwrap().starts_with('-') {
                     print_help();
                     return ExitCode::FAILURE;
                 }
@@ -299,21 +321,62 @@ impl HyprDock {
         if base.is_empty() {
             return;
         }
+        LOG!(format!(
+            "Executing {} with {:?}",
+            &command.base, &command.args
+        ));
         thread::spawn(move || {
-            Command::new(base)
+            let _ = Command::new(base)
                 .args(command.args)
                 .spawn()
-                .expect("Could not parse command, please check your toml");
+                .expect("Could not parse command, please check your toml")
+                .wait();
         });
     }
 
-    pub fn handle_close(&self) {
+    pub fn handle_plug_in(&self) {
+        LOG!("Video plugin");
+        let monitor_hash = get_current_monitor_hash();
+        let path = try_get_monitor_hash_path(self.monitor_config_path.clone(), &monitor_hash);
+        if path.is_none() {
+            self.add_monitor();
+            save_hypr_monitor_data(self.monitor_config_path.clone());
+        } else {
+            set_hypr_monitors_from_file(
+                self.monitor_config_path.clone(),
+                None,
+                Some(&monitor_hash),
+            );
+        }
+        self.wallpaper();
+        self.reload_bar();
+        self.fix_bar();
+    }
+
+    pub fn handle_plug_out(&self) {
+        LOG!("Video plugout");
+        let monitor_hash = get_current_monitor_hash();
+        let path = try_get_monitor_hash_path(self.monitor_config_path.clone(), &monitor_hash);
+        if path.is_some() {
+            set_hypr_monitors_from_file(
+                self.monitor_config_path.clone(),
+                None,
+                Some(&monitor_hash),
+            );
+            return;
+        }
+        self.internal_monitor();
+        set_hypr_monitors_from_file(self.monitor_config_path.clone(), None, Some(&monitor_hash));
+    }
+
+    pub fn handle_lid_close(&self) {
+        LOG!("Closed Lid");
         if self.has_external_monitor() {
             self.execute_command(
                 self.disable_internal_monitor_command
                     .format(&self.monitor_name),
             );
-            let monitor_hash = get_current_monitor_hash(None);
+            let monitor_hash = get_current_monitor_hash();
             let path = try_get_monitor_hash_path(self.monitor_config_path.clone(), &monitor_hash);
             if path.is_some() {
                 set_hypr_monitors_from_file(
@@ -332,8 +395,9 @@ impl HyprDock {
         }
     }
 
-    pub fn handle_open(&self) {
-        let monitor_hash = get_current_monitor_hash(None);
+    pub fn handle_lid_open(&self) {
+        LOG!("Opened Lid");
+        let monitor_hash = get_current_monitor_hash();
         if self.is_internal_active() {
             return;
         }
@@ -356,48 +420,12 @@ impl HyprDock {
         self.fix_bar();
     }
 
-    pub fn handle_event(&self, event: &str) {
+    pub fn handle_event(&self, event: &HyprDockEvent) {
         match event {
-            _ if event.contains("LID close") => self.handle_close(),
-            _ if event.contains("LID open") => self.handle_open(),
-            _ if event.contains("VIDEOOUT plug") => {
-                let monitor_hash = get_current_monitor_hash(None);
-                let path =
-                    try_get_monitor_hash_path(self.monitor_config_path.clone(), &monitor_hash);
-                if path.is_none() {
-                    self.add_monitor();
-                    save_hypr_monitor_data(self.monitor_config_path.clone(), None, None);
-                } else {
-                    set_hypr_monitors_from_file(
-                        self.monitor_config_path.clone(),
-                        None,
-                        Some(&monitor_hash),
-                    );
-                }
-                self.wallpaper();
-                self.reload_bar();
-                self.fix_bar();
-            }
-            _ if event.contains("VIDEOOUT unplug") => {
-                let monitor_hash = get_current_monitor_hash(None);
-                let path =
-                    try_get_monitor_hash_path(self.monitor_config_path.clone(), &monitor_hash);
-                if path.is_some() {
-                    set_hypr_monitors_from_file(
-                        self.monitor_config_path.clone(),
-                        None,
-                        Some(&monitor_hash),
-                    );
-                    return;
-                }
-                self.internal_monitor();
-                set_hypr_monitors_from_file(
-                    self.monitor_config_path.clone(),
-                    None,
-                    Some(&monitor_hash),
-                );
-            }
-            _ => {}
+            HyprDockEvent::VideoPlugIn => self.handle_plug_in(),
+            HyprDockEvent::VideoPlugOut => self.handle_plug_out(),
+            HyprDockEvent::LidOpen => self.handle_lid_open(),
+            HyprDockEvent::LidClose => self.handle_lid_close(),
         }
     }
 
@@ -416,7 +444,9 @@ impl HyprDock {
             let n = sock.read(&mut buf).expect("failed to read from socket");
             let data = std::str::from_utf8(&buf[..n]).unwrap().to_string();
 
-            self.handle_event(data.as_str());
+            HyprDockEvent::from_str(data.as_str())
+                .iter()
+                .for_each(|event| self.handle_event(event));
         }
     }
 

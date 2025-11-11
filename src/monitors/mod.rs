@@ -61,10 +61,11 @@ impl Monitor {
             "{},{}@{},{},{},transform,{}",
             self.name, self.resolution, self.refreshrate, self.offset, self.scale, self.transform
         );
-        Command::new("hyprctl")
+        let mut cmd = Command::new("hyprctl")
             .args(["keyword", "monitor", &monitor_string])
             .spawn()
             .expect("Could not enable specified monitor");
+        cmd.wait().expect("Could not wait to enable the monitor");
     }
 }
 

@@ -3,29 +3,24 @@
   gtk-layer-shell,
   gtk3,
   lib,
-  lockFile,
   pkg-config,
-  rustPlatform,
   rustc,
+  craneLib,
   ...
 }: let
   cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
 in
-  rustPlatform.buildRustPackage rec {
+  craneLib.buildPackage {
     pname = cargoToml.package.name;
-    version = cargoToml.package.version;
+    inherit (cargoToml.package) version;
 
-    src = ../.;
+    src = craneLib.cleanCargoSource ../.;
 
     buildInputs = [
       pkg-config
       gtk3
       gtk-layer-shell
     ];
-
-    cargoLock = {
-      inherit lockFile;
-    };
 
     nativeBuildInputs = [
       pkg-config
