@@ -1,0 +1,94 @@
+[
+  {
+    "id": 0,
+    "name": "DP-1",
+    "description": "Testmonitor1",
+    "make": "TestMake",
+    "model": "test",
+    "serial": "test",
+    "width": 3440,
+    "height": 1440,
+    "physicalWidth": 800,
+    "physicalHeight": 350,
+    "refreshRate": 179.99899,
+    "x": 2560,
+    "y": 0,
+    "activeWorkspace": {
+      "id": 9,
+      "name": "9"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [0, 30, 0, 0],
+    "scale": 1.0,
+    "transform": 0,
+    "focused": true,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": ["WINDOWED", "CANDIDATE"],
+    "activelyTearing": false,
+    "tearingBlockedBy": ["NOT_TORN", "USER", "CANDIDATE"],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": ["CANDIDATE"],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "3440x1440@180.00Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1.0,
+    "sdrSaturation": 1.0,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80
+  },
+  {
+    "id": 1,
+    "name": "DP-2",
+    "description": "Testmonitor2",
+    "make": "TestMake",
+    "model": "test",
+    "serial": "test",
+    "width": 3440,
+    "height": 1440,
+    "physicalWidth": 800,
+    "physicalHeight": 350,
+    "refreshRate": 179.99899,
+    "x": 0,
+    "y": 0,
+    "activeWorkspace": {
+      "id": 9,
+      "name": "9"
+    },
+    "specialWorkspace": {
+      "id": 0,
+      "name": ""
+    },
+    "reserved": [0, 30, 0, 0],
+    "scale": 1.0,
+    "transform": 0,
+    "focused": true,
+    "dpmsStatus": true,
+    "vrr": false,
+    "solitary": "0",
+    "solitaryBlockedBy": ["WINDOWED", "CANDIDATE"],
+    "activelyTearing": false,
+    "tearingBlockedBy": ["NOT_TORN", "USER", "CANDIDATE"],
+    "directScanoutTo": "0",
+    "directScanoutBlockedBy": ["CANDIDATE"],
+    "disabled": false,
+    "currentFormat": "XRGB8888",
+    "mirrorOf": "none",
+    "availableModes": [
+      "3440x1440@180.00Hz"
+    ],
+    "colorManagementPreset": "srgb",
+    "sdrBrightness": 1.0,
+    "sdrSaturation": 1.0,
+    "sdrMinLuminance": 0.2,
+    "sdrMaxLuminance": 80
+  }
+]

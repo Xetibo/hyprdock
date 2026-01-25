@@ -32,7 +32,7 @@ use std::{
     thread,
 };
 
-use crate::monitors::hypr_monitors::save_hypr_monitor_data_with_name;
+use crate::monitors::{Monitor, hypr_monitors::save_hypr_monitor_data_with_name};
 
 enum HyprDockEvent {
     VideoPlugIn,
@@ -145,6 +145,7 @@ static DEFAULT_CONFIG: Lazy<OptionalHyprDock> = Lazy::new(|| {
                 .expect("Could not convert path to string")
                 .to_string(),
         ),
+        monitors: Some(Vec::new()),
     }
 });
 
@@ -175,6 +176,7 @@ struct HyprDock {
     extend_command: HyprdockCommand,
     mirror_command: HyprdockCommand,
     wallpaper_command: HyprdockCommand,
+    monitors: Vec<Monitor>,
 }
 
 fn main() -> ExitCode {
@@ -184,12 +186,14 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    let monitors = get_all_hypr_monitors();
     let dock = parse_config(
         create_config_dir()
             .map(|path| path.join("hyprdock.toml"))
             .unwrap_or_default()
             .to_str()
             .expect("Could not convert path to string"),
+        monitors,
     );
 
     let mut iter = args.iter();
@@ -303,7 +307,7 @@ fn print_help() {
     );
 }
 
-fn parse_config(path: &str) -> HyprDock {
+fn parse_config(path: &str, monitors: Vec<Monitor>) -> HyprDock {
     let contents = match fs::read_to_string(path) {
         Ok(c) => c,
         Err(_) => default_config_string(),
@@ -312,10 +316,18 @@ fn parse_config(path: &str) -> HyprDock {
         Ok(d) => d,
         Err(_) => DEFAULT_CONFIG.to_owned(),
     };
-    parsed_conf.build(DEFAULT_CONFIG.to_owned().try_into().unwrap())
+    let mut dock = parsed_conf.build(DEFAULT_CONFIG.to_owned().try_into().unwrap());
+    dock.monitors = monitors;
+    dock
 }
 
 impl HyprDock {
+    #[cfg(test)]
+    pub fn execute_command(&self, command: HyprdockCommand) {
+        println!("Executing {} with {:?}", &command.base, &command.args);
+    }
+
+    #[cfg(not(test))]
     pub fn execute_command(&self, command: HyprdockCommand) {
         let base = command.base.trim().to_string();
         if base.is_empty() {
@@ -554,12 +566,48 @@ impl HyprDock {
     }
 
     pub fn has_external_monitor(&self) -> bool {
-        let current_monitors = get_all_hypr_monitors();
-        for monitor in current_monitors {
+        for monitor in self.monitors.iter() {
             if monitor.name != self.monitor_name && !monitor.disabled {
                 return true;
             }
         }
         false
     }
+}
+
+#[cfg(test)]
+fn get_test_monitors(path: &str) -> Vec<Monitor> {
+    use std::fs::File;
+
+    use crate::monitors::hypr_monitors::HyprMonitor;
+    let mut file = File::open(path).expect("Could not open test file");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Could not read data from file");
+
+    let monitors: Vec<HyprMonitor> =
+        serde_json::from_str(contents.as_str()).expect("Could not get monitors from test file");
+    monitors
+        .into_iter()
+        .map(|item| item.convert_data())
+        .collect()
+}
+
+#[test]
+fn has_external_monitor_test() {
+    let test_monitors = |path: &str, should_have_external_monitor: bool| {
+        let monitors = get_test_monitors(path);
+        let name = monitors
+            .first()
+            .expect("Could not read first monitor of test file")
+            .name
+            .clone();
+        let mut dock = parse_config("", monitors);
+        dock.monitor_name = name;
+
+        assert_eq!(dock.has_external_monitor(), should_have_external_monitor);
+    };
+
+    test_monitors("./src/example_json/full_example.json", true);
+    test_monitors("./src/example_json/small_example.json", false);
 }

@@ -17,8 +17,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 use std::process::Command;
 
+use serde::{Deserialize, Serialize};
+
 pub mod hypr_monitors;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Monitor {
     pub name: String,
     pub make: String,
