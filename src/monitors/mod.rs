@@ -66,6 +66,7 @@ impl Monitor {
         );
         let mut cmd = Command::new("hyprctl")
             .args(["keyword", "monitor", &monitor_string])
+            .stdout(std::process::Stdio::null())
             .spawn()
             .expect("Could not enable specified monitor");
         cmd.wait().expect("Could not wait to enable the monitor");

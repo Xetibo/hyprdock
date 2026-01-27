@@ -135,7 +135,7 @@ pub fn save_hypr_monitor_data_with_name(path: String, name: Option<&String>) {
 }
 
 pub fn try_get_monitor_hash_path(base_path: String, hash: &str) -> Option<PathBuf> {
-    let path = PathBuf::from(base_path + "/monitor_configs" + hash + ".json");
+    let path = PathBuf::from(base_path + "monitor_configs/" + hash + ".json");
     if path.is_file() { Some(path) } else { None }
 }
 

@@ -340,6 +340,8 @@ impl HyprDock {
         thread::spawn(move || {
             let _ = Command::new(base)
                 .args(command.args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
                 .spawn()
                 .expect("Could not parse command, please check your toml")
                 .wait();
