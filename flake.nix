@@ -25,16 +25,28 @@
       }: let
         craneLib = crane.mkLib pkgs;
       in {
-        devShells.default = pkgs.mkShell {
-          inputsFrom = builtins.attrValues self'.packages;
-          packages = with pkgs; [
-            cargo
-            rustc
-            clippy
-            rust-analyzer
-            rustfmt
-          ];
-        };
+        devShells.default = let
+          libPath = with pkgs;
+            lib.makeLibraryPath [
+              libGL
+              libxkbcommon
+              wayland
+              pkg-config
+              libclang
+            ];
+        in
+          pkgs.mkShell {
+            inputsFrom = builtins.attrValues self'.packages;
+            packages = with pkgs; [
+              cargo
+              rustc
+              clippy
+              rust-analyzer
+              rustfmt
+            ];
+            LD_LIBRARY_PATH = libPath;
+            LIBCLANG_PATH = "${pkgs.libclang.lib}/lib";
+          };
         packages = rec {
           hyprdock = pkgs.callPackage ./nix/default.nix {inherit inputs craneLib;};
           default = hyprdock;

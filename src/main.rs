@@ -32,7 +32,10 @@ use std::{
     thread,
 };
 
-use crate::monitors::{Monitor, hypr_monitors::save_hypr_monitor_data_with_name};
+use crate::{
+    gui::run_gui,
+    monitors::{Monitor, hypr_monitors::save_hypr_monitor_data_with_name},
+};
 
 enum HyprDockEvent {
     VideoPlugIn,
@@ -247,7 +250,13 @@ fn main() -> ExitCode {
                 print_help();
                 return ExitCode::SUCCESS;
             }
-            "--gui" | "-g" => dock.run_gui(),
+            "--gui" | "-g" => {
+                let res = run_gui();
+                if res.is_ok() {
+                    return ExitCode::SUCCESS;
+                }
+                return ExitCode::FAILURE;
+            }
             x => {
                 println!("Could not parse {}", x);
                 print_help();
@@ -341,7 +350,6 @@ impl HyprDock {
             let _ = Command::new(base)
                 .args(command.args)
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
                 .spawn()
                 .expect("Could not parse command, please check your toml")
                 .wait();

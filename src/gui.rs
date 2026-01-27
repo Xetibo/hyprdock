@@ -1,181 +1,226 @@
-/*
-Copyright © 2023 Fabio Lenherr
+use iced::keyboard::key::{Code, Named};
+use iced::theme::Style;
+use iced::widget::{column, row, text};
+use iced::{Alignment, Element, Length, Subscription, Task, Theme, event};
+use oxiced::theme::theme_impl::get_derived_iced_theme;
+use oxiced::utils::spacing::{_LARGE_SPACING, MEDIUM_SPACING};
+use oxiced::widgets::oxi_button;
+use oxiced::widgets::oxi_layer::{layer_theme, rounded_layer};
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
+use iced_layershell::settings::{LayerShellSettings, Settings};
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU Affero General Public License for more details.
+use crate::monitors::hypr_monitors::{get_all_hypr_monitors, save_hypr_monitor_data};
+use crate::{HyprDock, create_config_dir, parse_config};
 
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+// TODO make this configurable
+const SCALE_FACTOR: f32 = 1.0;
+const WINDOW_SIZE: (u32, u32) = (1200, 300);
+const WINDOW_MARGINS: (i32, i32, i32, i32) = (100, 100, 100, 100);
+const WINDOW_LAYER: Layer = Layer::Overlay;
+const WINDOW_KEYBAORD_MODE: KeyboardInteractivity = KeyboardInteractivity::Exclusive;
 
-use crate::{HyprDock, monitors::hypr_monitors::save_hypr_monitor_data};
-use gtk::{self, StyleContext, Window, gdk, glib::Propagation};
-pub use gtk::{Button, prelude::*};
-use gtk_layer_shell::LayerShell;
-use std::rc::Rc;
+pub fn run_gui() -> Result<(), iced_layershell::Error> {
+    let default_anchor = Anchor::empty();
+    let settings = Settings {
+        layer_settings: LayerShellSettings {
+            size: Some(WINDOW_SIZE),
+            exclusive_zone: 0,
+            anchor: default_anchor,
+            layer: WINDOW_LAYER,
+            margin: WINDOW_MARGINS,
+            keyboard_interactivity: WINDOW_KEYBAORD_MODE,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    iced_layershell::application(
+        HyprDockGui::new,
+        HyprDockGui::namespace,
+        HyprDockGui::update,
+        HyprDockGui::view,
+    )
+    .subscription(HyprDockGui::subscription)
+    .settings(settings)
+    .theme(HyprDockGui::theme)
+    .style(HyprDockGui::style)
+    .scale_factor(HyprDockGui::scale_factor)
+    .run()
+}
 
-impl HyprDock {
-    pub fn run_gui(&self) {
-        let dock1 = Rc::new(self.clone());
-        let dock2 = Rc::new(self.clone());
-        let app = gtk::Application::builder()
-            .application_id("org.dashie.hyprdock")
-            .build();
+struct HyprDockGui {
+    theme: Theme,
+    dock: HyprDock,
+}
 
-        app.connect_startup(move |_| {
-            gtk::init().unwrap();
-            dock1.load_css();
-        });
-        app.connect_activate(move |app| {
-            let apprc = Rc::new(app.clone());
-            let app1 = apprc.clone();
-            let app2 = apprc.clone();
-            let app3 = apprc.clone();
-            let app4 = apprc.clone();
-            let app5 = apprc.clone();
-            let app6 = apprc.clone();
-            let config_ref1 = dock2.clone();
-            let config_ref2 = dock2.clone();
-            let config_ref3 = dock2.clone();
-            let config_ref4 = dock2.clone();
-            let config_ref5 = dock2.clone();
-            let config_ref6 = dock2.clone();
-            let main_box = gtk::Box::builder().name("MainBox").build();
-            let external = Button::builder()
-                .label("External Monitor only")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .name("ExternalButton")
-                .build();
-            let internal = Button::builder()
-                .label("Internal Monitor only")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .name("InternalButton")
-                .build();
-            let extend = Button::builder()
-                .label("Extend Monitors")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .name("ExtendButton")
-                .build();
-            let mirror = Button::builder()
-                .label("Mirror Monitors")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .name("MirrorButton")
-                .build();
-            let export = Button::builder()
-                .label("Export MonitorConfig")
-                .margin_top(12)
-                .margin_bottom(12)
-                .margin_start(12)
-                .margin_end(12)
-                .name("ExportButton")
-                .build();
-
-            external.connect_clicked(move |_external| {
-                config_ref1.external_monitor();
-                app1.quit();
-            });
-            internal.connect_clicked(move |_internal| {
-                config_ref2.internal_monitor();
-                app2.quit();
-            });
-            extend.connect_clicked(move |_extend| {
-                config_ref3.extend_monitor();
-                app3.quit();
-            });
-            mirror.connect_clicked(move |_mirror| {
-                config_ref4.mirror_monitor();
-                app4.quit();
-            });
-            export.connect_clicked(move |_mirror| {
-                save_hypr_monitor_data(config_ref5.monitor_config_path.clone());
-                app5.quit();
-            });
-
-            main_box.add(&internal);
-            main_box.add(&external);
-            main_box.add(&extend);
-            main_box.add(&mirror);
-            main_box.add(&export);
-
-            let window = Rc::new(
-                Window::builder()
-                    .application(app)
-                    .title("Monitor Portal")
-                    .child(&main_box)
-                    .name("MainWindow")
-                    .build(),
-            );
-
-            window.init_layer_shell();
-            window.set_keyboard_interactivity(true);
-            window.set_layer(gtk_layer_shell::Layer::Overlay);
-
-            window.connect_key_press_event(move |window, event| match event.keyval() {
-                gtk::gdk::keys::constants::Escape => {
-                    window.close();
-                    Propagation::Stop
-                }
-                gtk::gdk::keys::constants::_1 => {
-                    config_ref6.internal_monitor();
-                    app6.quit();
-                    Propagation::Stop
-                }
-                gtk::gdk::keys::constants::_2 => {
-                    config_ref6.external_monitor();
-                    app6.quit();
-                    Propagation::Stop
-                }
-                gtk::gdk::keys::constants::_3 => {
-                    config_ref6.extend_monitor();
-                    app6.quit();
-                    Propagation::Stop
-                }
-                gtk::gdk::keys::constants::_4 => {
-                    config_ref6.mirror_monitor();
-                    app6.quit();
-                    Propagation::Stop
-                }
-                gtk::gdk::keys::constants::_5 => {
-                    save_hypr_monitor_data(config_ref6.monitor_config_path.clone());
-                    app6.quit();
-                    Propagation::Stop
-                }
-                _ => Propagation::Proceed,
-            });
-
-            window.show_all();
-        });
-        app.run_with_args(&[""]);
-    }
-    fn load_css(&self) {
-        let context_provider = gtk::CssProvider::new();
-        if !self.css_string.is_empty() {
-            let _ = context_provider.load_from_path(&self.css_string);
-        }
-
-        StyleContext::add_provider_for_screen(
-            &gdk::Screen::default().unwrap(),
-            &context_provider,
-            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+impl Default for HyprDockGui {
+    fn default() -> Self {
+        let monitors = get_all_hypr_monitors();
+        let dock = parse_config(
+            create_config_dir()
+                .map(|path| path.join("hyprdock.toml"))
+                .unwrap_or_default()
+                .to_str()
+                .expect("Could not convert path to string"),
+            monitors,
         );
+        Self {
+            theme: get_derived_iced_theme(),
+            dock,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum Message {
+    Exit,
+    InternalMonitor,
+    ExternalMonitor,
+    ExtendMonitor,
+    MirrorMonitor,
+    SaveMonitors,
+}
+
+impl TryInto<iced_layershell::actions::LayershellCustomActionWithId> for Message {
+    type Error = Self;
+    fn try_into(
+        self,
+    ) -> Result<iced_layershell::actions::LayershellCustomActionWithId, Self::Error> {
+        Err(self)
+    }
+}
+
+impl HyprDockGui {
+    fn new() -> (Self, Task<Message>) {
+        (
+            Self {
+                ..Default::default()
+            },
+            Task::none(),
+        )
+    }
+
+    fn namespace() -> String {
+        String::from("HyprDock")
+    }
+
+    fn update(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::Exit => std::process::exit(0),
+            Message::InternalMonitor => {
+                self.dock.internal_monitor();
+                std::process::exit(0);
+            }
+            Message::ExternalMonitor => {
+                self.dock.external_monitor();
+                std::process::exit(0);
+            }
+            Message::ExtendMonitor => {
+                self.dock.extend_monitor();
+                std::process::exit(0);
+            }
+            Message::MirrorMonitor => {
+                self.dock.mirror_monitor();
+                std::process::exit(0);
+            }
+            Message::SaveMonitors => {
+                save_hypr_monitor_data(self.dock.monitor_config_path.clone());
+                std::process::exit(0);
+            }
+        }
+    }
+
+    fn view(&'_ self) -> Element<'_, Message> {
+        let internal = oxi_button::button(
+            column!(text("Internal Monitor only"))
+                .align_x(Alignment::Center)
+                .width(Length::Fill),
+            oxi_button::ButtonVariant::PrimaryBg,
+        )
+        .on_press(Message::InternalMonitor)
+        .width(Length::FillPortion(1));
+        let external = oxi_button::button(
+            column!(text("External Monitors only"))
+                .align_x(Alignment::Center)
+                .width(Length::Fill),
+            oxi_button::ButtonVariant::PrimaryBg,
+        )
+        .on_press(Message::ExternalMonitor)
+        .width(Length::FillPortion(1));
+        let extend = oxi_button::button(
+            column!(text("Extend Monitors"))
+                .align_x(Alignment::Center)
+                .width(Length::Fill),
+            oxi_button::ButtonVariant::PrimaryBg,
+        )
+        .on_press(Message::ExtendMonitor)
+        .width(Length::FillPortion(1));
+        let mirror = oxi_button::button(
+            column!(text("Mirror Monitors"))
+                .align_x(Alignment::Center)
+                .width(Length::Fill),
+            oxi_button::ButtonVariant::PrimaryBg,
+        )
+        .on_press(Message::MirrorMonitor)
+        .width(Length::FillPortion(1));
+        let save = oxi_button::button(
+            column!(text("Save Configuration"))
+                .align_x(Alignment::Center)
+                .width(Length::Fill),
+            oxi_button::ButtonVariant::PrimaryBg,
+        )
+        .on_press(Message::SaveMonitors)
+        .width(Length::FillPortion(1));
+        let row = row!(internal, external, extend, mirror, save)
+            .width(Length::Fill)
+            .spacing(_LARGE_SPACING)
+            .padding(MEDIUM_SPACING);
+        rounded_layer(row, WINDOW_SIZE)
+    }
+
+    fn theme(&self) -> Theme {
+        self.theme.clone()
+    }
+
+    fn subscription(&self) -> Subscription<Message> {
+        event::listen_with(move |event, _status, _id| match event {
+            iced::Event::Keyboard(iced::keyboard::Event::KeyPressed {
+                modifiers: _modifier,
+                key,
+                modified_key: _,
+                physical_key,
+                location: _,
+                text: _,
+                repeat: _repeat,
+            }) => match (key, physical_key) {
+                (iced::keyboard::key::Key::Named(Named::Escape), _) => Some(Message::Exit),
+                (_, iced::keyboard::key::Physical::Code(Code::Digit1)) => {
+                    Some(Message::InternalMonitor)
+                }
+                (_, iced::keyboard::key::Physical::Code(Code::Digit2)) => {
+                    Some(Message::ExternalMonitor)
+                }
+                (_, iced::keyboard::key::Physical::Code(Code::Digit3)) => {
+                    Some(Message::ExtendMonitor)
+                }
+                (_, iced::keyboard::key::Physical::Code(Code::Digit4)) => {
+                    Some(Message::MirrorMonitor)
+                }
+                (_, iced::keyboard::key::Physical::Code(Code::Digit5)) => {
+                    Some(Message::SaveMonitors)
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+    }
+
+    // remove the annoying background color
+    fn style(&self, _: &Theme) -> Style {
+        layer_theme()
+    }
+
+    fn scale_factor(&self) -> f32 {
+        SCALE_FACTOR
     }
 }
